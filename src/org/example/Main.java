@@ -1,43 +1,69 @@
 package org.example;
 
+import netscape.javascript.JSObject;
+import org.example.Object.*;
+
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 
 public class Main {
 
     public static void main(String[] args) {
-        // Thông tin kết nối
-        String url = "jdbc:mysql://localhost:3306/test";
-        String username = "root";
-        String password = "0matkhau";
+        List<Animal> animals =  new ArrayList<>();
+        List<DataSaving> dataSavings = new ArrayList<>();
 
-        // Biến để lưu trữ kết nối
-        Connection connection = null;
-
-        try {
-            // Tạo kết nối
-            connection = DriverManager.getConnection(url, username, password);
-
-            // Kiểm tra kết nối thành công hay không
-            if (connection != null) {
-                System.out.println("Kết nối thành công đến MySQL!");
-            } else {
-                System.out.println("Không thể kết nối đến MySQL!");
+        dataSavings.add(new FileSaving());
+        dataSavings.add(new MySQLSaver());
+        try{
+            for (int i = 0; i <dataSavings.size(); i++){
+                dataSavings.get(i).SetUp();
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
-        } catch (SQLException e) {
-            System.err.println("Lỗi kết nối đến MySQL: " + e.getMessage());
-        } finally {
+        Random rand = new Random();
+        // Create animal
+        for (int i = 0; i< 1000; i++){
+            animals.add(AnimalFactory.CreateAnimal(rand.nextInt()));
+        }
+        // create data to save
+        List<Thread> threads = new ArrayList<>();
+        // Save Data to file
+        for (int i = 0; i <dataSavings.size(); i++){
             try {
-                // Đóng kết nối sau khi sử dụng
-                if (connection != null) {
-                    connection.close();
-                    System.out.println("Đã đóng kết nối đến MySQL!");
-                }
-            } catch (SQLException e) {
-                System.err.println("Lỗi khi đóng kết nối: " + e.getMessage());
+                dataSavings.get(i).SaveData(animals);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            Thread t = new Thread(dataSavings.get(i));
+            threads.add(t);
+            t.start();
+        }
+        boolean isDone = false;
+        while (!isDone){
+            isDone = true;
+            for (Thread t: threads) {
+                isDone = isDone && t.getState()== Thread.State.TERMINATED;
             }
         }
+        System.out.println("Finish");
+        // Close stream
+        try{
+            for (int i = 0; i <dataSavings.size(); i++){
+                dataSavings.get(i).Close();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    public void ConnectDatabase(){
+
     }
 }
